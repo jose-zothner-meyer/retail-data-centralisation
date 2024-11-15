@@ -1,5 +1,0 @@
-user: aicore_admin
-password: AiCore2022
-host: data-handling-project-readonly.cq2e8zno855e.eu-west-1.rds.amazonaws.com
-database: postgres
-port: 5432

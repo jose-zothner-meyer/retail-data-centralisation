@@ -1,113 +1,135 @@
-# Step 1: Data Extraction Script
-# File: data_extraction.py
-
-from typing import Dict, Optional
 import pandas as pd
-from sqlalchemy import create_engine
-import sqlalchemy
+import requests
+import tabula
+import boto3
+from sqlalchemy import text
+from io import StringIO
 from class_2_database_connector import DatabaseConnector
-from class_3_data_cleaning import DataCleaning
 
 class DataExtractor:
-    """
-    Utility class to extract data from different data sources such as CSV files, APIs, and S3 buckets.
-    """
-    
-    def extract_from_csv(self, file_path: str) -> pd.DataFrame:
-        """
-        Extract data from a CSV file.
-        Args:
-            file_path (str): The path to the CSV file.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        pass
-    
-    def extract_from_api(self, api_url: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, str]] = None) -> pd.DataFrame:
-        """
-        Extract data from an API endpoint.
-        Args:
-            api_url (str): The URL of the API endpoint.
-            headers (Optional[Dict[str, str]]): Optional headers for the API request.
-            params (Optional[Dict[str, str]]): Optional parameters for the API request.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        pass
+    def __init__(self, db_connector: DatabaseConnector = None):
+        self.db_connector = db_connector
 
-    def extract_from_s3(self, bucket_name: str, file_key: str, aws_credentials: Dict[str, str]) -> pd.DataFrame:
-        """
-        Extract data from an S3 bucket.
-        Args:
-            bucket_name (str): The name of the S3 bucket.
-            file_key (str): The key of the file within the bucket.
-            aws_credentials (Dict[str, str]): AWS credentials for accessing the bucket.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        pass
+    def list_tables(self) -> list:
+        """List all tables in the database using the DatabaseConnector."""
+        if self.db_connector:
+            return self.db_connector.list_db_tables()
+        else:
+            print("No database connection provided.")
+            return []
 
-    def read_data_from_db(self, engine, table_name: str) -> pd.DataFrame:
-        """
-        Read data from a database table using the provided engine.
-        Args:
-            engine: The SQLAlchemy engine connected to the database.
-            table_name (str): The name of the table to read the data from.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        query = f"SELECT * FROM {table_name}"
-        dataframe = pd.read_sql(query, con=engine)
-        return dataframe
+    def read_data(self, table_name: str) -> list:
+        """Read data from the specified table and return it as a list of dictionaries."""
+        if self.db_connector:
+            try:
+                with self.db_connector.engine.connect() as connection:
+                    query = text(f"SELECT * FROM {table_name}")
+                    result = connection.execute(query)
+                    data = [dict(row) for row in result.mappings()]
+                    return data
+            except Exception as e:
+                print(f"Error reading data from table {table_name}: {e}")
+                return []
+        else:
+            print("No database connection provided.")
+            return []
 
-    def read_rds_table(self, db_connector: 'DatabaseConnector', table_name: str) -> pd.DataFrame:
-        """
-        Extract the database table to a pandas DataFrame using the DatabaseConnector instance.
-        Args:
-            db_connector (DatabaseConnector): An instance of the DatabaseConnector class.
-            table_name (str): The name of the table to extract.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        engine = db_connector.init_db_engine(db_connector.read_db_creds('db_creds.yaml'))
-        return self.read_data_from_db(engine, table_name)
+    def read_rds_table(self, table_name: str) -> pd.DataFrame:
+        """Read a table from the RDS database into a pandas DataFrame."""
+        if self.db_connector:
+            try:
+                query = f"SELECT * FROM {table_name}"
+                df = pd.read_sql(query, self.db_connector.engine)
+                return df
+            except Exception as e:
+                print(f"Error reading table {table_name}: {e}")
+                return pd.DataFrame()
+        else:
+            print("No database connection provided.")
+            return pd.DataFrame()
 
-    def retrieve_pdf_data(self, pdf_link: str) -> pd.DataFrame:
-        """
-        Extract data from a PDF document.
-        Args:
-            pdf_link (str): The link to the PDF document.
-        Returns:
-            pd.DataFrame: The extracted data as a DataFrame.
-        """
-        # Extracting all pages from the PDF document
-        dataframes = tabula.read_pdf(pdf_link, pages='all', multiple_tables=True)
-        # Concatenate all the tables into a single DataFrame
-        combined_dataframe = pd.concat(dataframes, ignore_index=True)
-        return combined_dataframe
+    def retrieve_pdf_data(self, link: str) -> pd.DataFrame:
+        """Retrieve data from a PDF document and return it as a pandas DataFrame."""
+        try:
+            df_list = tabula.read_pdf(link, pages='all', multiple_tables=True)
+            df = pd.concat(df_list, ignore_index=True)
+            return df
+        except Exception as e:
+            print(f"Error retrieving data from PDF: {e}")
+            return pd.DataFrame()
 
-    def extract_and_upload_cleaned_user_data(self, db_connector: 'DatabaseConnector', cleaning_instance: 'DataCleaning', table_name: str, target_table_name: str) -> None:
-        """
-        Extract, clean, and upload user data to the target database table.
-        Args:
-            db_connector (DatabaseConnector): An instance of the DatabaseConnector class.
-            cleaning_instance (DataCleaning): An instance of the DataCleaning class.
-            table_name (str): The name of the table to extract user data from.
-            target_table_name (str): The name of the target table to upload cleaned data to.
-        """
-        # Step 1: Extract the data from the RDS table
-        raw_data = self.read_rds_table(db_connector, table_name)
-        print(f"Extracted raw data rows: {len(raw_data)}")  # Debug statement
+    def list_number_of_stores(self, stores_endpoint: str, headers: dict) -> int:
+        """Retrieve the number of stores from the API."""
+        try:
+            response = requests.get(stores_endpoint, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('number_stores', 0)
+        except requests.exceptions.RequestException as e:
+            print(f"Error retrieving number of stores: {e}")
+            return 0
 
-        # Step 2: Clean the user data
-        cleaned_data = cleaning_instance.clean_user_data(raw_data)
+    def retrieve_stores_data(self, store_endpoint: str, headers: dict, number_of_stores: int) -> pd.DataFrame:
+        """Retrieve the details of all stores from the API and return as a pandas DataFrame."""
+        stores_data = []
+        for store_number in range(1, number_of_stores + 1):
+            try:
+                response = requests.get(f"{store_endpoint}/{store_number}", headers=headers)
+                response.raise_for_status()
+                store_data = response.json()
+                stores_data.append(store_data)
+            except requests.exceptions.RequestException as e:
+                print(f"Error retrieving data for store number {store_number}: {e}")
 
-        # Step 3: Check the cleaned data row count and ensure correctness
-        if len(cleaned_data) != 15284:
-            print("\nDEBUG: After cleaning, unexpected row count encountered.")
-            raise ValueError(f"Expected 15284 rows after cleaning, but got {len(cleaned_data)} rows.")
+        return pd.DataFrame(stores_data)
 
-        # Step 4: Upload the cleaned data to the target table
-        engine = db_connector.init_db_engine(db_connector.read_db_creds('db_creds.yaml'))
-        db_connector.upload_to_db(cleaned_data, target_table_name, engine)
-        print(f"Uploaded cleaned data to table: {target_table_name}")  # Debug statement
+    def extract_from_s3(self, s3_uri: str) -> pd.DataFrame:
+        """Extract data from S3 and return as a pandas DataFrame."""
+        bucket_name, s3_file_key = self._parse_s3_uri(s3_uri)
+        s3_client = boto3.client('s3')
+
+        try:
+            response = s3_client.get_object(Bucket=bucket_name, Key=s3_file_key)
+            csv_string = response['Body'].read().decode('utf-8')
+            df = pd.read_csv(StringIO(csv_string))
+            return df
+        except boto3.exceptions.Boto3Error as e:
+            print(f"Error extracting data from S3: {e}")
+            return pd.DataFrame()
+
+    def extract_json_from_url(self, url: str) -> pd.DataFrame:
+        """Extract JSON data from a URL and return it as a pandas DataFrame."""
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            json_data = response.json()
+            df = pd.json_normalize(json_data)
+            return df
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data from URL: {e}")
+            return pd.DataFrame()
+
+    @staticmethod
+    def _parse_s3_uri(s3_uri: str) -> tuple:
+        """Parse the S3 URI into bucket name and file key."""
+        bucket_name = s3_uri.split('/')[2]
+        s3_file_key = '/'.join(s3_uri.split('/')[3:])
+        return bucket_name, s3_file_key
+
+if __name__ == "__main__":
+    # API details
+    stores_endpoint = "https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores"
+    store_details_endpoint = "https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details"
+    headers = {"x-api-key": "yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX"}
+
+    # Create an instance of DataExtractor
+    data_extractor = DataExtractor()
+
+    # List number of stores
+    number_of_stores = data_extractor.list_number_of_stores(stores_endpoint, headers)
+    print(f"Number of stores: {number_of_stores}")
+
+    if number_of_stores:
+        # Retrieve stores data
+        stores_df = data_extractor.retrieve_stores_data(store_details_endpoint, headers, number_of_stores)
+        print(stores_df.head())  # Display the first few rows of the stores DataFrame

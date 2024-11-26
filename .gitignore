@@ -138,8 +138,8 @@ cython_debug/
 # PyCharm
 #.idea/
 
-# Custom sensitive files for this PROJECT (SQLAlchemy, boto3, psycopg2, or general config files)
-credentials.yaml
+# Custom sensitive files for this PROJECT (SQLAlchemy, boto3, psycopg2, or general config files
+db_creds.yaml
 config.yaml  # General configuration files
 secrets.json  # JSON format secrets
 

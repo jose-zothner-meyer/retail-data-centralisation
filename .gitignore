@@ -139,7 +139,7 @@ cython_debug/
 #.idea/
 
 # Custom sensitive files for this PROJECT (SQLAlchemy, boto3, psycopg2, or general config files
-db_creds.yaml
+*.yaml  # Database credentials
 config.yaml  # General configuration files
 secrets.json  # JSON format secrets
 

@@ -1,0 +1,5 @@
+RDS_HOST: localhost
+RDS_PORT: 5432
+RDS_DATABASE: sales_data
+RDS_USER: jomeme
+RDS_PASSWORD: admin

@@ -142,6 +142,7 @@ cython_debug/
 *.yaml  # Database credentials
 aws_db_creds.yaml  # AWS RDS database credentials
 local_db_creds.yaml
+main.py  # Main Python file
 config.yaml  # General configuration files
 secrets.json  # JSON format secrets
 

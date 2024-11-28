@@ -22,7 +22,7 @@ def main():
     local_db_connector = DatabaseConnector(config_path='local_db_creds.yaml')
 
     # Step 5: Upload the cleaned data to the local database as 'dim_orders'
-    local_db_connector.upload_to_db(cleaned_df, "dim_orders")
+    local_db_connector.upload_to_db(cleaned_df, "orders_table")
 
 if __name__ == "__main__":
     main()

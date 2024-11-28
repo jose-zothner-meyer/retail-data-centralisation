@@ -47,6 +47,7 @@ class DataCleaning:
         df = self.clean_locality(df)
         df = self.clean_store_code(df)
         df = self.clean_staff_numbers(df)
+        df = self.remove_null_rows_store(df)
         return df
     
     def clean_product_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -353,4 +354,11 @@ class DataCleaning:
         """Combine 'timestamp', 'day', 'month', and 'year' into a single datetime column."""
         df['datetime'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str) + '-' + df['day'].astype(str) + ' ' + df['timestamp'])
         df.drop(['timestamp', 'day', 'month', 'year'], axis=1, inplace=True)
+        return df
+    
+    def remove_null_rows_store(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Remove rows with any null values.
+        """
+        df.dropna(inplace=True)
         return df

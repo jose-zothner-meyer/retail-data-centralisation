@@ -47,7 +47,7 @@ class DataCleaning:
         df = self.clean_locality(df)
         df = self.clean_store_code(df)
         df = self.clean_staff_numbers(df)
-        df = self.remove_null_rows_store(df)
+        df = self.remove_invalid_rows(df)
         return df
     
     def clean_product_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -243,16 +243,16 @@ class DataCleaning:
 
     def clean_store_code(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Clean the store_code column by ensuring it contains a '-' separator.
+        This function does not modify the store_code column.
         """
-        df['store_code'] = df['store_code'].apply(lambda x: x if (isinstance(x, str) and '-' in x) else np.nan)
         return df
 
     def clean_staff_numbers(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Clean the staff_numbers column by converting all values to numeric, coercing errors to NaN.
+        Clean the staff_numbers column by removing all alphabetical characters.
         """
-        df['staff_numbers'] = pd.to_numeric(df['staff_numbers'], errors='coerce')
+        df['staff_numbers'] = df['staff_numbers'].apply(lambda x: re.sub(r'[^\d]', '', str(x)) if pd.notnull(x) else x)
+        df['staff_numbers'] = df['staff_numbers'].replace('', np.nan)  # Replace empty strings with NaN
         return df
 
     def clean_weight_column(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -354,11 +354,4 @@ class DataCleaning:
         """Combine 'timestamp', 'day', 'month', and 'year' into a single datetime column."""
         df['datetime'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str) + '-' + df['day'].astype(str) + ' ' + df['timestamp'])
         df.drop(['timestamp', 'day', 'month', 'year'], axis=1, inplace=True)
-        return df
-    
-    def remove_null_rows_store(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Remove rows with any null values.
-        """
-        df.dropna(inplace=True)
         return df

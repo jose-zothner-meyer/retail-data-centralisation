@@ -310,7 +310,7 @@ SELECT store_code
 WHERE store_code is NULL;
 
 SELECT *
-FROM dim_store_details;
+FROM dim_store_details
 WHERE store_code is NULL;
 -- Add primary key
 DELETE FROM dim_users
@@ -376,6 +376,30 @@ REFERENCES dim_users(user_uuid);
 
 -- TO SOLVE FROM HERE
 
+/*
+----
+step 1
+
+ALTER TABLE dim_users
+ADD PRIMARY KEY (user_uuid);
+
+step 2
+
+SELECT DISTINCT store_code
+FROM orders_table
+WHERE store_code NOT IN (
+    SELECT store_code
+    FROM dim_store_details
+);
+
+step 3 -- Rather than deleting the row, look at the python method.
+
+SELECT *
+FROM dim_users
+WHERE user_uuid is NULL;
+*/
+
+
 -- Add foreign key to reference dim_store_details --
 
 SELECT DISTINCT store_code
@@ -384,6 +408,9 @@ WHERE store_code NOT IN (
     SELECT store_code
     FROM dim_store_details
 );
+
+DELETE FROM orders_table
+WHERE store_code = 'WEB-1388012W';
 
 ALTER TABLE orders_table
 ADD CONSTRAINT fk_store_code
@@ -411,22 +438,4 @@ FOREIGN KEY (card_number)
 REFERENCES dim_card_details(card_number);
 
 ----
-step 1
 
-ALTER TABLE dim_users
-ADD PRIMARY KEY (user_uuid);
-
-step 2
-
-SELECT DISTINCT store_code
-FROM orders_table
-WHERE store_code NOT IN (
-    SELECT store_code
-    FROM dim_store_details
-);
-
-step 3
-
-SELECT *
-FROM dim_users
-WHERE user_uuid is NULL;

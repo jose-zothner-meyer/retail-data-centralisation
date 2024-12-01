@@ -175,10 +175,8 @@ class DataCleaning:
 
         # Check each row for invalid patterns
         invalid_rows = df.apply(lambda row: any(is_invalid_pattern(val) for val in row), axis=1)
-
         # Remove rows with invalid data
         df = df[~invalid_rows]
-
         return df
 
     def remove_invalid_rows_date_events_data(self, df: pd.DataFrame) -> pd.DataFrame:

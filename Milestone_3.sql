@@ -110,6 +110,9 @@ FROM dim_store_details;
 SELECT MAX(LENGTH(store_code)) FROM dim_store_details;
 SELECT MAX(LENGTH(country_code)) FROM dim_store_details;
 
+DELETE FROM dim_store_details 
+WHERE longitude ~ '[^0-9.-]';
+
 -- Step 2: Update the data types for each column
 ALTER TABLE dim_store_details
 	ALTER COLUMN longitude TYPE NUMERIC USING longitude::NUMERIC,
@@ -409,6 +412,7 @@ WHERE store_code NOT IN (
     FROM dim_store_details
 );
 
+/*
 DELETE FROM orders_table
 WHERE store_code = 'WEB-1388012W';
 
@@ -416,6 +420,7 @@ ALTER TABLE orders_table
 ADD CONSTRAINT fk_store_code
 FOREIGN KEY (store_code)
 REFERENCES dim_store_details(store_code);
+*/
 
 -- TO SOLVE UNTIL HERE
 
@@ -439,3 +444,242 @@ REFERENCES dim_card_details(card_number);
 
 ----
 
+-- Milestone 4
+
+/*
+Task 1: How many stores does the business have and in which countries?
+
+The Operations team would like to know which countries we currently operate in and which country now has the most physical stores.
+Perform a query on the database to get the information, it should return the following information:
++----------+-----------------+
+| country  | total_no_stores |
++----------+-----------------+
+| GB       |             265 |
+| DE       |             141 |
+| US       |              34 |
++----------+-----------------+
+Note: DE is short for Deutschland(Germany)
+*/
+
+SELECT 
+    country_code AS country,
+    COUNT(*) AS total_no_stores
+FROM 
+    dim_store_details
+GROUP BY 
+    country_code
+ORDER BY 
+    total_no_stores DESC;
+
+/*
+Task 2: Which location currently have the most stores?
+
+The business stakeholders would like to know which locations currently have the most stores.
+They would like to close some stores before opening more in other locations.
+Find out which locations have the most stores currently. The query should return the following:
++-------------------+-----------------+
+|     locality      | total_no_stores |
++-------------------+-----------------+
+| Chapletown        |              14 |
+| Belper            |              13 |
+| Bushley           |              12 |
+| Exeter            |              11 |
+| High Wycombe      |              10 |
+| Arbroath          |              10 |
+| Rutherglen        |              10 |
++-------------------+-----------------+
+*/
+
+SELECT 
+    locality,
+    COUNT(*) AS total_no_stores
+FROM 
+    dim_store_details
+GROUP BY 
+    locality
+ORDER BY 
+    total_no_stores DESC
+LIMIT 7; -- Limit to the top 7 localities with the most stores
+
+/*
+Task 3: Which months produced the largest amount of sales?
+
+Query the database to find out which months have produced the most sales. The query should return the following information:
++-------------+-------+
+| total_sales | month |
++-------------+-------+
+|   673295.68 |     8 |
+|   668041.45 |     1 |
+|   657335.84 |    10 |
+|   650321.43 |     5 |
+|   645741.70 |     7 |
+|   645463.00 |     3 |
++-------------+-------+
+*/
+
+SELECT
+ROUND(CAST(SUM(ord.product_quantity * dp.product_price_gbp) AS NUMERIC), 2)
+AS sales, ddt.month
+FROM
+orders_table ord
+INNER JOIN
+dim_date_times ddt
+ON
+ddt.date_uuid = ord.date_uuid
+INNER JOIN
+dim_products dp
+ON
+dp.product_code = ord.product_code
+GROUP BY
+(ddt.month)
+ORDER BY sales DESC
+LIMIT 6;
+
+/*
+Task 4: How many sales are coming from online?
+
+The company is looking to increase its online sales.
+They want to know how many sales are happening online vs offline.
+Calculate how many products were sold and the amount of sales made for online and offline purchases.
+You should get the following information:
++------------------+-------------------------+----------+
+| numbers_of_sales | product_quantity_count  | location |
++------------------+-------------------------+----------+
+|            26957 |                  107739 | Web      |
+|            93166 |                  374047 | Offline  |
++------------------+-------------------------+----------+
+*/
+
+SELECT 
+    COUNT(store_code) AS numbers_of_sales,
+    SUM(product_quantity) AS product_quantity_count,
+    'Web' AS location
+FROM 
+    orders_table
+WHERE 
+    store_code LIKE 'WEB%'
+GROUP BY 
+    location
+
+UNION
+
+SELECT 
+    COUNT(store_code) AS numbers_of_sales,
+    SUM(product_quantity) AS product_quantity_count,
+    'Offline' AS location
+FROM 
+    orders_table
+WHERE 
+    store_code NOT LIKE 'WEB%'
+GROUP BY 
+    location;
+
+/*
+Task 5: What percentage of sales come through each type of store?
+
+The sales team wants to know which of the different store types is generated the most revenue so they know where to focus.
+Find out the total revenue coming from each of the different store types and the number of sales made as a percentage.
+The query should return:
++-------------+-------------+-----------------+
+| store_type  | total_sales |   sales_made(%) |
++-------------+-------------+-----------------+
+| Local       |  3440896.52 |           44.87 |
+| Web portal  |  1726547.05 |           22.44 |
+| Super Store |  1224293.65 |           15.63 |
+| Mall Kiosk  |   698791.61 |            8.96 |
+| Outlet      |   631804.81 |            8.10 |
++-------------+-------------+-----------------+
+*/
+SELECT 
+    dim_store_details.store_type,
+    ROUND(SUM(orders_table.product_quantity * dim_products.product_price_gbp)::numeric, 2) AS total_sales,
+    ROUND(
+        (SUM(orders_table.product_quantity * dim_products.product_price_gbp)::numeric / 
+        (SELECT SUM(orders_table.product_quantity * dim_products.product_price_gbp)::numeric 
+         FROM orders_table 
+         JOIN dim_products ON orders_table.product_code = dim_products.product_code) * 100), 2) AS percentage_total
+FROM 
+    orders_table
+JOIN 
+    dim_store_details ON orders_table.store_code = dim_store_details.store_code
+JOIN 
+    dim_products ON orders_table.product_code = dim_products.product_code
+GROUP BY 
+    dim_store_details.store_type
+ORDER BY 
+    total_sales DESC;
+
+
+/*
+Task 6: Which month in each year produced the highest cost of sales?
+
+The company stakeholders want assurances that the company has been doing well recently.
+Find which months in which years have had the most sales historically.
+The query should return the following information:
++-------------+------+-------+
+| total_sales | year | month |
++-------------+------+-------+
+|    27936.77 | 1994 |     3 |
+|    27356.14 | 2019 |     1 |
+|    27091.67 | 2009 |     8 |
+|    26679.98 | 1997 |    11 |
+|    26310.97 | 2018 |    12 |
+|    26277.72 | 2019 |     8 |
+|    26236.67 | 2017 |     9 |
+|    25798.12 | 2010 |     5 |
+|    25648.29 | 1996 |     8 |
+|    25614.54 | 2000 |     1 |
++-------------+------+-------+
+*/
+
+
+/*
+Task 7: What is our staff headcount?
+
+The operations team would like to know the overall staff numbers in each location around the world. Perform a query to determine the staff numbers in each of the countries the company sells in.
+The query should return the values:
++---------------------+--------------+
+| total_staff_numbers | country_code |
++---------------------+--------------+
+|               13307 | GB           |
+|                6123 | DE           |
+|                1384 | US           |
++---------------------+--------------+
+*/
+
+
+/*
+Task 8: Which German store type is selling the most?
+
+The sales team is looking to expand their territory in Germany. Determine which type of store is generating the most sales in Germany.
+The query will return:
++--------------+-------------+--------------+
+| total_sales  | store_type  | country_code |
++--------------+-------------+--------------+
+|   198373.57  | Outlet      | DE           |
+|   247634.20  | Mall Kiosk  | DE           |
+|   384625.03  | Super Store | DE           |
+|  1109909.59  | Local       | DE           |
++--------------+-------------+--------------+
+*/
+
+
+/*
+Task 9: How quickly is the company making sales?
+
+Sales would like the get an accurate metric for how quickly the company is making sales.
+Determine the average time taken between each sale grouped by year, the query should return the following information:
+ +------+-------------------------------------------------------+
+ | year |                           actual_time_taken           |
+ +------+-------------------------------------------------------+
+ | 2013 | "hours": 2, "minutes": 17, "seconds": 12, "millise... |
+ | 1993 | "hours": 2, "minutes": 15, "seconds": 35, "millise... |
+ | 2002 | "hours": 2, "minutes": 13, "seconds": 50, "millise... | 
+ | 2022 | "hours": 2, "minutes": 13, "seconds": 6,  "millise... |
+ | 2008 | "hours": 2, "minutes": 13, "seconds": 2,  "millise... |
+ +------+-------------------------------------------------------+
+ 
+NOTE: Your result may be displayed differently if using PgAdmin4.
+
+Hint: You will need the SQL LEAD function and create a full timestamp from the date/time values provided.
+*/

@@ -47,7 +47,9 @@ class DataCleaning:
         df = self.clean_locality(df)
         df = self.clean_store_code(df)
         df = self.clean_staff_numbers(df)
-        df = self.remove_invalid_rows(df)
+        #df = self.remove_invalid_rows(df)
+        # Use the updated method here
+        df = self.remove_invalid_rows_excluding_store_code(df)
         return df
     
     def clean_product_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -352,4 +354,16 @@ class DataCleaning:
         """Combine 'timestamp', 'day', 'month', and 'year' into a single datetime column."""
         df['datetime'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str) + '-' + df['day'].astype(str) + ' ' + df['timestamp'])
         df.drop(['timestamp', 'day', 'month', 'year'], axis=1, inplace=True)
+        return df
+    
+    def remove_invalid_rows_excluding_store_code(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Remove rows with invalid data patterns, excluding specific rows from deletion.
+        """
+        # Explicitly preserve the row with store_code 'WEB-1388012W'
+        preserved_row_condition = df['store_code'] == 'WEB-1388012W'
+        
+        # Drop rows with NaN in the 'store_code' column, excluding the preserved row
+        df = df[~df['store_code'].isna() | preserved_row_condition]
+
         return df
